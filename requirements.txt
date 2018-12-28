@@ -1,2 +1,2 @@
 qtdigest==0.3.0
-requests==2.7.0
+requests==2.20.0
