@@ -30,10 +30,12 @@ class MetricClient(object):
         self.summary_metrics = {}
 
         self.flush_interval = 10
-        self.timer = threading.Timer(self.flush_interval, self._force_flush)
+        self.timer = threading.Timer(self.flush_interval, self.force_flush)
         self.timer.start()
 
-    def _force_flush(self):
+    def force_flush(self):
+        self.timer.cancel()
+
         metrics = []
 
         sms = self.set_metrics
@@ -75,7 +77,7 @@ class MetricClient(object):
     def _flush(self):
         if self.timer.is_alive():
             return
-        self.timer = threading.Timer(self.flush_interval, self._force_flush)
+        self.timer = threading.Timer(self.flush_interval, self.force_flush)
         self.timer.start()
 
     def set(self, name, value, ts=None):
@@ -165,9 +167,8 @@ if __name__ == "__main__":
     metric.summary('summary', 300)
     metric.summary('summary', 400)
 
-    time.sleep(11)
-
     metric.counter('counter', 100)
     metric.counter('counter', 100)
     metric.timing('timing', 100)
     metric.timing('timing', 200)
+    metric.force_flush()
