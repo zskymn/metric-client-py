@@ -29,17 +29,11 @@ class MetricClient(object):
         self.timing_metrics = {}
         self.summary_metrics = {}
 
-        self.last_flush_time = time.time()
         self.flush_interval = 10
-        self._auto_flush()
-
-    def _auto_flush(self):
-        self.timer = threading.Timer(self.flush_interval, self._auto_flush)
-        self.timer.daemon = True
+        self.timer = threading.Timer(self.flush_interval, self._force_flush)
         self.timer.start()
-        self._flush()
 
-    def force_flush(self):
+    def _force_flush(self):
         metrics = []
 
         sms = self.set_metrics
@@ -79,10 +73,10 @@ class MetricClient(object):
             return
 
     def _flush(self):
-        now = time.time()
-        if now - self.last_flush_time >= self.flush_interval:
-            self.last_flush_time = now
-            self.force_flush()
+        if self.timer.is_alive():
+            return
+        self.timer = threading.Timer(self.flush_interval, self._force_flush)
+        self.timer.start()
 
     def set(self, name, value, ts=None):
         name = self._check_not_empty_string(name, 'name')
@@ -165,14 +159,15 @@ if __name__ == "__main__":
     token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ2ZXJzaW9uIjoxLCJhcHBjb2RlIjoib3BzX21ldHJpY2d3IiwidG9fdXNlciI6Inh4eHguemhhbyIsImlhdCI6MTU0NTczNTczMH0.Aj8srWIjyFwxhcMrZlCxyNlP44uLG0iiR31ynyYd4Bw'  # noqa
     send_api = 'http://localhost:6066/v1/metric/send'
     metric = MetricClient(send_api, token)
-    while True:
-        metric.set('set', 344)
-        metric.counter('counter', 100)
-        metric.counter('counter', 100)
-        metric.timing('timing', 100)
-        metric.timing('timing', 200)
-        metric.summary('summary', 100)
-        metric.summary('summary', 200)
-        metric.summary('summary', 300)
-        metric.summary('summary', 400)
-        time.sleep(1)
+    metric.set('set', 344)
+    metric.summary('summary', 100)
+    metric.summary('summary', 200)
+    metric.summary('summary', 300)
+    metric.summary('summary', 400)
+
+    time.sleep(11)
+
+    metric.counter('counter', 100)
+    metric.counter('counter', 100)
+    metric.timing('timing', 100)
+    metric.timing('timing', 200)
