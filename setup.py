@@ -7,9 +7,9 @@ here = path.abspath(path.dirname(__file__))
 
 setup(
     name='metric-client',
-    version='0.0.1',
+    version='0.0.2',
     description='metric client for python',
-    url='',
+    url='https://github.com/zskymn/metric-client-py',
     author='zskymn',
     author_email='zsymn@163.com',
     license='MIT',
@@ -27,6 +27,6 @@ setup(
         'test': ['pytest', 'pytest-cov'],
     },
     package_data={
-        'metric_client': ['../README.md'],
+        'metric_client': ['./README.md'],
     }
 )
