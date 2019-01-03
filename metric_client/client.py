@@ -3,11 +3,37 @@
 import sys
 import threading
 import time
+from functools import wraps
 
 import requests
 from qtdigest import Tdigest
 
+import logging
+try:
+    from logging import NullHandler
+except ImportError:
+    class NullHandler(logging.Handler):
+        def emit(self, record):
+            pass
+
+logging.getLogger(__name__).addHandler(NullHandler())
+
 PY2 = sys.version_info.major == 2
+
+
+class MCError(Exception):
+    pass
+
+
+def log_for_error(f):
+
+    @wraps(f)
+    def _decorator(*args, **kwargs):
+        try:
+            return f(*args, **kwargs)
+        except MCError as ex:
+            logging.error('MCError: %s' % ex)
+    return _decorator
 
 
 class MetricClient(object):
@@ -33,6 +59,7 @@ class MetricClient(object):
         self.timer = threading.Timer(self.flush_interval, self.force_flush)
         self.timer.start()
 
+    @log_for_error
     def force_flush(self):
         self.timer.cancel()
 
@@ -62,7 +89,7 @@ class MetricClient(object):
                 name=v['name'],
                 data_type='tdigest',
                 value=v['td'].simpleSerialize(),
-                output=dict(common=['count', 'min', 'max', 'avg'], percentiles=[5, 95, 99])
+                output=dict(common=['count', 'min', 'max', 'avg'], percentiles=v['percentiles'])
             ))
 
         if not metrics:
@@ -80,6 +107,7 @@ class MetricClient(object):
         self.timer = threading.Timer(self.flush_interval, self.force_flush)
         self.timer.start()
 
+    @log_for_error
     def set(self, name, value, ts=None):
         name = self._check_not_empty_string(name, 'name')
         value = self._check_number(value, 'value')
@@ -92,6 +120,7 @@ class MetricClient(object):
             self.set_metrics[key] = dict(type='set', name=name, value=value, ts=ts)
         self._flush()
 
+    @log_for_error
     def counter(self, name, value):
         name = self._check_not_empty_string(name, 'name')
         value = self._check_number(value, 'value')
@@ -102,6 +131,7 @@ class MetricClient(object):
             self.counter_metrics[name] = dict(type='counter', name=name, value=value)
         self._flush()
 
+    @log_for_error
     def timing(self, name, value):
         name = self._check_not_empty_string(name, 'name')
         value = self._check_number(value, 'value')
@@ -115,16 +145,25 @@ class MetricClient(object):
             self.timing_metrics[name] = dict(type='timing', name=name, count=1, sum=value, max=value, min=value)
         self._flush()
 
-    def summary(self, name, value):
+    @log_for_error
+    def summary(self, name, value, percentiles=None):
         name = self._check_not_empty_string(name, 'name')
         value = self._check_number(value, 'value')
         last = self.summary_metrics.get(name)
+        percentiles = percentiles or [50, 90, 95, 99]
+        if not isinstance(percentiles, list):
+            raise MCError(u'percentiles must be list')
+        for p in percentiles:
+            p = self._check_number(p, 'percentile')
+            if p < 0 or p > 100:
+                raise MCError(u'percentile must between 0 and 100')
         if last:
             last['td'].push(value)
+            last['percentiles'] = list(set(last['percentiles'] + percentiles))
         else:
             td = Tdigest()
             td.push(value)
-            self.summary_metrics[name] = dict(type='summary', name=name, td=td)
+            self.summary_metrics[name] = dict(type='summary', name=name, td=td, percentiles=percentiles)
         self._flush()
 
     def _check_not_empty_string(self, s, label):
@@ -152,17 +191,13 @@ class MetricClient(object):
         return ts
 
 
-class MCError(Exception):
-    pass
-
-
 if __name__ == "__main__":
     print(sys.version)
     token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ2ZXJzaW9uIjoxLCJhcHBjb2RlIjoib3BzX21ldHJpY2d3IiwidG9fdXNlciI6Inh4eHguemhhbyIsImlhdCI6MTU0NTczNTczMH0.Aj8srWIjyFwxhcMrZlCxyNlP44uLG0iiR31ynyYd4Bw'  # noqa
     send_api = 'http://localhost:6066/v1/metric/send'
     metric = MetricClient(send_api, token)
     metric.set('set', 344)
-    metric.summary('summary', 100)
+    metric.summary('summary', 100, percentiles=[50, 90, 95, 99])
     metric.summary('summary', 200)
     metric.summary('summary', 300)
     metric.summary('summary', 400)

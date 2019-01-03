@@ -22,6 +22,8 @@ metric.set('set', 344)
 metric.counter('counter', 100)
 metric.timing('timing', 100)
 metric.summary('summary', 100)
+metric.summary('summary_low', 20, percentiles=[1, 5, 10])
+# percentiles 表示输出的指标中包含的百分位数列表，默认是 [50, 90, 95, 99]
 ```
 
 ## 指标类型
