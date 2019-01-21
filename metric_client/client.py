@@ -95,11 +95,16 @@ class MetricClient(object):
         if not metrics:
             return
 
+        headers = {'X-App-Token': self.token}
         try:
-            headers = {'X-App-Token': self.token}
-            requests.post(self.send_api, json=dict(metrics=metrics), headers=headers, timeout=2.0)
-        except Exception:
-            return
+            resp = requests.post(self.send_api, json=dict(metrics=metrics), headers=headers, timeout=2.0)
+            if resp.status_code != 200:
+                raise MCError(u'gateway api fail, status_code: %s, detai: %s' % (resp.status_code, resp.content))
+            data = resp.json()
+            if data['errcode'] != 0:
+                raise MCError(u'gateway api fail, status_code: 200, detai: %s' % data.get('message'))
+        except Exception as ex:
+            raise MCError(u'gateway api error: %s' % str(ex))
 
     def _flush(self):
         if self.timer.is_alive():
