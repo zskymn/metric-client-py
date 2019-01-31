@@ -64,7 +64,11 @@ class MetricClient(object):
             self.timer.start()
 
     @log_for_error
-    def force_flush(self):
+    def force_flush(self, cancel_timer=False):
+        if cancel_timer:
+            with self._timer_lock:
+                if self.timer.is_alive():
+                    self.timer.cancel()
 
         metrics = []
 
@@ -208,7 +212,7 @@ if __name__ == "__main__":
     print(sys.version)
     token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ2ZXJzaW9uIjoxLCJhcHBjb2RlIjoib3BzX21ldHJpY2d3IiwidG9fdXNlciI6Inh4eHguemhhbyIsImlhdCI6MTU0NTczNTczMH0.Aj8srWIjyFwxhcMrZlCxyNlP44uLG0iiR31ynyYd4Bw'  # noqa
     send_api = 'http://localhost:6066/v1/metric/send'
-    metric = MetricClient(send_api, token, is_in_daemon=False)
+    metric = MetricClient(send_api, token, is_in_daemon=True)
     worker_list = []
     for bv in range(50):
         worker_list.append(TaskWorker(metric))
@@ -219,12 +223,10 @@ if __name__ == "__main__":
     for worker in worker_list:
         worker.join()
 
-    metric.force_flush()
-
     def ff():
         metric.summary('summary', 100, percentiles=[50, 90, 95, 99])
 
     timer = threading.Timer(5, ff)
     timer.setDaemon(True)
     timer.start()
-    metric.force_flush()
+    metric.force_flush(False)
