@@ -39,6 +39,7 @@ def log_for_error(f):
 class MetricClient(object):
     _instance = None
     _instance_lock = threading.Lock()
+    _timer_lock = threading.Lock()
 
     def __new__(cls, *args, **kwargs):
         if not cls._instance:
@@ -56,12 +57,15 @@ class MetricClient(object):
         self.summary_metrics = {}
 
         self.flush_interval = 10
-        self.timer = threading.Timer(self.flush_interval, self.force_flush)
-        self.timer.start()
+        with self._timer_lock:
+            self.timer = threading.Timer(self.flush_interval, self.force_flush)
+            self.timer.start()
 
     @log_for_error
     def force_flush(self):
-        self.timer.cancel()
+
+        with self._timer_lock:
+            self.timer.cancel()
 
         metrics = []
 
@@ -107,10 +111,11 @@ class MetricClient(object):
             raise MCError(u'gateway api error: %s' % str(ex))
 
     def _flush(self):
-        if self.timer.is_alive():
-            return
-        self.timer = threading.Timer(self.flush_interval, self.force_flush)
-        self.timer.start()
+        with self._timer_lock:
+            if self.timer.is_alive():
+                return
+            self.timer = threading.Timer(self.flush_interval, self.force_flush)
+            self.timer.start()
 
     @log_for_error
     def set(self, name, value, ts=None):
@@ -197,18 +202,25 @@ class MetricClient(object):
 
 
 if __name__ == "__main__":
+    class TaskWorker(threading.Thread):
+        def __init__(self, metric):
+            super(TaskWorker, self).__init__()
+            self.metric = metric
+
+        def run(self):
+            self.metric.summary('summary', 100, percentiles=[50, 90, 95, 99])
+            self.metric.force_flush()
+
     print(sys.version)
     token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ2ZXJzaW9uIjoxLCJhcHBjb2RlIjoib3BzX21ldHJpY2d3IiwidG9fdXNlciI6Inh4eHguemhhbyIsImlhdCI6MTU0NTczNTczMH0.Aj8srWIjyFwxhcMrZlCxyNlP44uLG0iiR31ynyYd4Bw'  # noqa
     send_api = 'http://localhost:6066/v1/metric/send'
     metric = MetricClient(send_api, token)
-    metric.set('set', 344)
-    metric.summary('summary', 100, percentiles=[50, 90, 95, 99])
-    metric.summary('summary', 200)
-    metric.summary('summary', 300)
-    metric.summary('summary', 400)
+    worker_list = []
+    for bv in range(50):
+        worker_list.append(TaskWorker(metric))
 
-    metric.counter('counter', 100)
-    metric.counter('counter', 100)
-    metric.timing('timing', 100)
-    metric.timing('timing', 200)
-    metric.force_flush()
+    for worker in worker_list:
+        worker.start()
+
+    for worker in worker_list:
+        worker.join()
