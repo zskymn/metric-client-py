@@ -47,25 +47,24 @@ class MetricClient(object):
                 cls._instance = super(MetricClient, cls).__new__(cls)
         return cls._instance
 
-    def __init__(self, send_api, token):
+    def __init__(self, send_api, token, is_in_daemon=True, flush_interval=10):
         self.send_api = self._check_not_empty_string(send_api, 'send_api')
         self.token = self._check_not_empty_string(token, 'token')
+        self.is_in_daemon = is_in_daemon
 
         self.set_metrics = {}
         self.counter_metrics = {}
         self.timing_metrics = {}
         self.summary_metrics = {}
 
-        self.flush_interval = 10
+        self.flush_interval = flush_interval
         with self._timer_lock:
-            self.timer = threading.Timer(self.flush_interval, self.force_flush)
+            self.timer = threading.Timer(self.flush_interval, self._flush)
+            self.timer.setDaemon(not self.is_in_daemon)
             self.timer.start()
 
     @log_for_error
     def force_flush(self):
-
-        with self._timer_lock:
-            self.timer.cancel()
 
         metrics = []
 
@@ -112,10 +111,10 @@ class MetricClient(object):
 
     def _flush(self):
         with self._timer_lock:
-            if self.timer.is_alive():
-                return
-            self.timer = threading.Timer(self.flush_interval, self.force_flush)
+            self.timer = threading.Timer(self.flush_interval, self._flush)
+            self.timer.setDaemon(not self.is_in_daemon)
             self.timer.start()
+            self.force_flush()
 
     @log_for_error
     def set(self, name, value, ts=None):
@@ -128,7 +127,6 @@ class MetricClient(object):
             last['value'] = value
         else:
             self.set_metrics[key] = dict(type='set', name=name, value=value, ts=ts)
-        self._flush()
 
     @log_for_error
     def counter(self, name, value):
@@ -139,7 +137,6 @@ class MetricClient(object):
             last['value'] += value
         else:
             self.counter_metrics[name] = dict(type='counter', name=name, value=value)
-        self._flush()
 
     @log_for_error
     def timing(self, name, value):
@@ -153,7 +150,6 @@ class MetricClient(object):
             last['max'] = max(last['max'], value)
         else:
             self.timing_metrics[name] = dict(type='timing', name=name, count=1, sum=value, max=value, min=value)
-        self._flush()
 
     @log_for_error
     def summary(self, name, value, percentiles=None):
@@ -174,7 +170,6 @@ class MetricClient(object):
             td = Tdigest()
             td.push(value)
             self.summary_metrics[name] = dict(type='summary', name=name, td=td, percentiles=percentiles)
-        self._flush()
 
     def _check_not_empty_string(self, s, label):
         if not isinstance(s, basestring if PY2 else str):  # noqa
@@ -209,12 +204,11 @@ if __name__ == "__main__":
 
         def run(self):
             self.metric.summary('summary', 100, percentiles=[50, 90, 95, 99])
-            self.metric.force_flush()
 
     print(sys.version)
     token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ2ZXJzaW9uIjoxLCJhcHBjb2RlIjoib3BzX21ldHJpY2d3IiwidG9fdXNlciI6Inh4eHguemhhbyIsImlhdCI6MTU0NTczNTczMH0.Aj8srWIjyFwxhcMrZlCxyNlP44uLG0iiR31ynyYd4Bw'  # noqa
     send_api = 'http://localhost:6066/v1/metric/send'
-    metric = MetricClient(send_api, token)
+    metric = MetricClient(send_api, token, is_in_daemon=False)
     worker_list = []
     for bv in range(50):
         worker_list.append(TaskWorker(metric))
@@ -224,3 +218,13 @@ if __name__ == "__main__":
 
     for worker in worker_list:
         worker.join()
+
+    metric.force_flush()
+
+    def ff():
+        metric.summary('summary', 100, percentiles=[50, 90, 95, 99])
+
+    timer = threading.Timer(5, ff)
+    timer.setDaemon(True)
+    timer.start()
+    metric.force_flush()
