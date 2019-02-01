@@ -106,7 +106,7 @@ class MetricClient(object):
 
         headers = {'X-App-Token': self.token}
         try:
-            resp = requests.post(self.send_api, json=dict(metrics=metrics), headers=headers, timeout=2.0)
+            resp = requests.post(self.send_api, json=dict(metrics=metrics), headers=headers)
             if resp.status_code != 200:
                 raise MCError(u'gateway api fail, status_code: %s, detai: %s' % (resp.status_code, resp.content))
             data = resp.json()
