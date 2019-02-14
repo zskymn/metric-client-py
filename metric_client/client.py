@@ -1,5 +1,12 @@
 # coding=utf-8
 
+try:
+    from gevent import monkey
+    monkey.patch_all()
+except ImportError:
+    pass
+
+
 import sys
 import threading
 import multiprocessing
@@ -10,6 +17,7 @@ import requests
 from qtdigest import Tdigest
 
 import logging
+
 try:
     from logging import NullHandler
 except ImportError:
