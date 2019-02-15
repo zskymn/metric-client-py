@@ -48,6 +48,8 @@ def log_for_error(f):
 class MetricClient(object):
     _instance = None
     _instance_lock = threading.Lock()
+    _inited = False
+    _init_lock = threading.Lock()
 
     def __new__(cls, *args, **kwargs):
         if not cls._instance:
@@ -56,6 +58,10 @@ class MetricClient(object):
         return cls._instance
 
     def __init__(self, send_api, token):
+        with self._init_lock:
+            if self._inited:
+                return
+            self._inited = True
         self.send_api = self._check_not_empty_string(send_api, 'send_api')
         self.token = self._check_not_empty_string(token, 'token')
         self.flush_interval = 10
