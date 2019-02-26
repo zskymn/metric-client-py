@@ -1,12 +1,5 @@
 # coding=utf-8
 
-try:
-    from gevent import monkey
-    monkey.patch_all()
-except ImportError:
-    pass
-
-
 import sys
 import threading
 import multiprocessing
