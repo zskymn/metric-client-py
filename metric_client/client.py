@@ -61,11 +61,17 @@ class MetricClient(object):
 
         self.set_metrics = {}
         self.counter_metrics = {}
+        self.max_metrics = {}
+        self.min_metrics = {}
+        self.avg_metrics = {}
         self.timing_metrics = {}
         self.summary_metrics = {}
 
         self.set_metrics_lock = threading.Lock()
         self.counter_metrics_lock = threading.Lock()
+        self.max_metrics_lock = threading.Lock()
+        self.min_metrics_lock = threading.Lock()
+        self.avg_metrics_lock = threading.Lock()
         self.timing_metrics_lock = threading.Lock()
         self.summary_metrics_lock = threading.Lock()
 
@@ -94,6 +100,21 @@ class MetricClient(object):
             for k in self.timing_metrics:
                 metrics.append(self.timing_metrics[k])
             self.timing_metrics = {}
+
+        with self.max_metrics_lock:
+            for k in self.max_metrics:
+                metrics.append(self.max_metrics[k])
+            self.max_metrics = {}
+
+        with self.min_metrics_lock:
+            for k in self.min_metrics:
+                metrics.append(self.min_metrics[k])
+            self.min_metrics = {}
+
+        with self.avg_metrics_lock:
+            for k in self.avg_metrics:
+                metrics.append(self.avg_metrics[k])
+            self.avg_metrics = {}
 
         with self.summary_metrics_lock:
 
@@ -153,6 +174,43 @@ class MetricClient(object):
                 last['value'] += value
             else:
                 self.counter_metrics[name] = dict(type='counter', name=name, value=value)
+        self._flush()
+
+    @log_for_error
+    def max(self, name, value):
+        name = self._check_not_empty_string(name, 'name')
+        value = self._check_number(value, 'value')
+        with self.max_metrics_lock:
+            last = self.max_metrics.get(name)
+            if last:
+                last['value'] = max(last['value'], value)
+            else:
+                self.max_metrics[name] = dict(type='max', name=name, value=value)
+        self._flush()
+
+    @log_for_error
+    def min(self, name, value):
+        name = self._check_not_empty_string(name, 'name')
+        value = self._check_number(value, 'value')
+        with self.min_metrics_lock:
+            last = self.min_metrics.get(name)
+            if last:
+                last['value'] = min(last['value'], value)
+            else:
+                self.min_metrics[name] = dict(type='min', name=name, value=value)
+        self._flush()
+
+    @log_for_error
+    def avg(self, name, value):
+        name = self._check_not_empty_string(name, 'name')
+        value = self._check_number(value, 'value')
+        with self.avg_metrics_lock:
+            last = self.avg_metrics.get(name)
+            if last:
+                last['count'] += 1
+                last['sum'] += value
+            else:
+                self.avg_metrics[name] = dict(type='avg', name=name, count=1, sum=value)
         self._flush()
 
     @log_for_error
@@ -231,6 +289,9 @@ if __name__ == "__main__":
                 self.metric.summary('summary_metric', i, percentiles=[50, 90, 95, 99])
                 self.metric.timing('timing_metric', i * 100)
                 self.metric.counter('counter_metric', 1)
+                self.metric.max('max_metric', i)
+                self.metric.min('min_metric', i)
+                self.metric.avg('avg_metric', i)
                 self.metric.set('set_metric', i)
 
     def process_run():
