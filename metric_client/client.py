@@ -45,10 +45,10 @@ class MetricClient(object):
     _init_lock = threading.Lock()
 
     def __new__(cls, *args, **kwargs):
-        if not cls._instance:
-            with cls._instance_lock:
+        with cls._instance_lock:
+            if not cls._instance:
                 cls._instance = super(MetricClient, cls).__new__(cls)
-        return cls._instance
+            return cls._instance
 
     def __init__(self, send_api, token):
         with self._init_lock:
