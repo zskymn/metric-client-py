@@ -125,7 +125,8 @@ class MetricClient(object):
                     name=v['name'],
                     data_type='tdigest',
                     value=v['td'].simpleSerialize(),
-                    output=dict(common=['count', 'min', 'max', 'avg'], percentiles=v['percentiles'])
+                    output=dict(common=['count', 'min', 'max', 'avg'], percentiles=v['percentiles']),
+                    ts=v['ts']
                 ))
             self.summary_metrics = {}
 
@@ -165,73 +166,86 @@ class MetricClient(object):
         self._flush()
 
     @log_for_error
-    def counter(self, name, value):
+    def counter(self, name, value, ts=None):
         name = self._check_not_empty_string(name, 'name')
         value = self._check_number(value, 'value')
+        ts = self._check_ts(ts or time.time(), 'ts')
+        key = '%s::%s' % (name, int(ts / 60))
         with self.counter_metrics_lock:
-            last = self.counter_metrics.get(name)
+            last = self.counter_metrics.get(key)
             if last:
                 last['value'] += value
             else:
-                self.counter_metrics[name] = dict(type='counter', name=name, value=value)
+                self.counter_metrics[key] = dict(type='counter', name=name, value=value, ts=ts)
         self._flush()
 
     @log_for_error
-    def max(self, name, value):
+    def max(self, name, value, ts=None):
         name = self._check_not_empty_string(name, 'name')
         value = self._check_number(value, 'value')
+        ts = self._check_ts(ts or time.time(), 'ts')
+        key = '%s::%s' % (name, int(ts / 60))
         with self.max_metrics_lock:
-            last = self.max_metrics.get(name)
+            last = self.max_metrics.get(key)
             if last:
                 last['value'] = max(last['value'], value)
             else:
-                self.max_metrics[name] = dict(type='max', name=name, value=value)
+                self.max_metrics[key] = dict(type='max', name=name, value=value, ts=ts)
         self._flush()
 
     @log_for_error
-    def min(self, name, value):
+    def min(self, name, value, ts=None):
         name = self._check_not_empty_string(name, 'name')
         value = self._check_number(value, 'value')
+        ts = self._check_ts(ts or time.time(), 'ts')
+        key = '%s::%s' % (name, int(ts / 60))
         with self.min_metrics_lock:
-            last = self.min_metrics.get(name)
+            last = self.min_metrics.get(key)
             if last:
                 last['value'] = min(last['value'], value)
             else:
-                self.min_metrics[name] = dict(type='min', name=name, value=value)
+                self.min_metrics[key] = dict(type='min', name=name, value=value, ts=ts)
         self._flush()
 
     @log_for_error
-    def avg(self, name, value):
+    def avg(self, name, value, ts=None):
         name = self._check_not_empty_string(name, 'name')
         value = self._check_number(value, 'value')
+        ts = self._check_ts(ts or time.time(), 'ts')
+        key = '%s::%s' % (name, int(ts / 60))
         with self.avg_metrics_lock:
-            last = self.avg_metrics.get(name)
+            last = self.avg_metrics.get(key)
             if last:
                 last['count'] += 1
                 last['sum'] += value
             else:
-                self.avg_metrics[name] = dict(type='avg', name=name, count=1, sum=value)
+                self.avg_metrics[key] = dict(type='avg', name=name, count=1, sum=value, ts=ts)
         self._flush()
 
     @log_for_error
-    def timing(self, name, value):
+    def timing(self, name, value, ts=None):
         name = self._check_not_empty_string(name, 'name')
         value = self._check_number(value, 'value')
+        ts = self._check_ts(ts or time.time(), 'ts')
+        key = '%s::%s' % (name, int(ts / 60))
         with self.timing_metrics_lock:
-            last = self.timing_metrics.get(name)
+            last = self.timing_metrics.get(key)
             if last:
                 last['count'] += 1
                 last['sum'] += value
                 last['min'] = min(last['min'], value)
                 last['max'] = max(last['max'], value)
             else:
-                self.timing_metrics[name] = dict(type='timing', name=name, count=1, sum=value, max=value, min=value)
+                self.timing_metrics[key] = dict(
+                    type='timing', name=name, count=1, sum=value, max=value, min=value, ts=ts)
         self._flush()
 
     @log_for_error
-    def summary(self, name, value, percentiles=None):
+    def summary(self, name, value, percentiles=None, ts=None):
         name = self._check_not_empty_string(name, 'name')
         value = self._check_number(value, 'value')
+        ts = self._check_ts(ts or time.time(), 'ts')
+        key = '%s::%s' % (name, int(ts / 60))
         percentiles = percentiles or [50, 90, 95, 99]
         if not isinstance(percentiles, list):
             raise MCError(u'percentiles must be list')
@@ -240,7 +254,7 @@ class MetricClient(object):
             if p < 0 or p > 100:
                 raise MCError(u'percentile must between 0 and 100')
         with self.summary_metrics_lock:
-            last = self.summary_metrics.get(name)
+            last = self.summary_metrics.get(key)
 
             if last:
                 last['td'].push(value)
@@ -248,7 +262,7 @@ class MetricClient(object):
             else:
                 td = Tdigest()
                 td.push(value)
-                self.summary_metrics[name] = dict(type='summary', name=name, td=td, percentiles=percentiles)
+                self.summary_metrics[key] = dict(type='summary', name=name, td=td, percentiles=percentiles, ts=ts)
         self._flush()
 
     def _check_not_empty_string(self, s, label):
@@ -287,9 +301,9 @@ if __name__ == "__main__":
         def run(self):
             for i in range(100):
                 self.metric.summary('summary_metric', i, percentiles=[50, 90, 95, 99])
-                self.metric.timing('timing_metric', i * 100)
+                self.metric.timing('timing_metric', i * 100, ts=time.time() - 300)
                 self.metric.counter('counter_metric', 1)
-                self.metric.max('max_metric', i)
+                self.metric.max('max_metric', i, ts=time.time() - 300)
                 self.metric.min('min_metric', i)
                 self.metric.avg('avg_metric', i)
                 self.metric.set('set_metric', i)
