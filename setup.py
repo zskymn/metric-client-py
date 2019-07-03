@@ -5,15 +5,10 @@ from os import path
 
 here = path.abspath(path.dirname(__file__))
 
-with open("README.md", "r") as fh:
-    long_description = fh.read()
-
 setup(
     name='metric-client',
     version='2.0.0',
     description='metric client for python',
-    long_description=long_description,
-    long_description_content_type="text/markdown",
     url='https://github.com/zskymn/metric-client-py',
     author='zskymn',
     author_email='zsymn@163.com',
