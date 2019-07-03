@@ -10,7 +10,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name='metric-client',
-    version='1.1.0',
+    version='2.0.0',
     description='metric client for python',
     long_description=long_description,
     long_description_content_type="text/markdown",

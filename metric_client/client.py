@@ -1,13 +1,5 @@
 # coding=utf-8
 
-
-try:
-    from gevent import monkey
-    monkey.patch_all()
-except ImportError:
-    pass
-
-
 import sys
 import threading
 import multiprocessing
@@ -48,22 +40,24 @@ def log_for_error(f):
 
 
 class MetricClient(object):
-    _instance = None
+    _instances = {}
     _instance_lock = threading.Lock()
-    _inited = False
+    _initeds = {}
     _init_lock = threading.Lock()
 
     def __new__(cls, *args, **kwargs):
         with cls._instance_lock:
-            if not cls._instance:
-                cls._instance = super(MetricClient, cls).__new__(cls)
-            return cls._instance
+            ins_id = args + tuple(sorted([(k, v) for k, v in kwargs.items()], key=lambda x: x[0]))
+            if not cls._instances.get(ins_id):
+                cls._instances[ins_id] = super(MetricClient, cls).__new__(cls)
+                cls._instances[ins_id].__ins_id_ = ins_id
+            return cls._instances[ins_id]
 
     def __init__(self, send_api, token):
         with self._init_lock:
-            if self._inited:
+            if self._initeds.get(self.__ins_id_):
                 return
-            self._inited = True
+            self._initeds[self.__ins_id_] = True
         self.send_api = self._check_not_empty_string(send_api, 'send_api')
         self.token = self._check_not_empty_string(token, 'token')
         self.flush_interval = 10
@@ -139,19 +133,38 @@ class MetricClient(object):
                 ))
             self.summary_metrics = {}
 
-        if not metrics:
-            return
+        self._send_to_gateway(metrics)
 
-        headers = {'X-App-Token': self.token}
-        try:
-            resp = requests.post(self.send_api, json=dict(metrics=metrics), headers=headers)
+    @log_for_error
+    def _send_to_gateway(self, metrics):
+        def __send(_metrics):
+            headers = {'X-App-Token': self.token}
+            try:
+                resp = requests.post(self.send_api, json=dict(metrics=_metrics), headers=headers)
+                return resp
+            except Exception as ex:
+                try:
+                    resp = requests.post(self.send_api, json=dict(metrics=_metrics), headers=headers)
+                    return resp
+                except Exception as ex:
+                    raise MCError(u'gateway api error: %s' % str(ex))
+
+        @log_for_error
+        def _send(_metrics):
+            resp = __send(_metrics)
             if resp.status_code != 200:
                 raise MCError(u'gateway api fail, status_code: %s, detai: %s' % (resp.status_code, resp.content))
             data = resp.json()
             if data['errcode'] != 0:
                 raise MCError(u'gateway api fail, status_code: 200, detai: %s' % data.get('message'))
-        except Exception as ex:
-            raise MCError(u'gateway api error: %s' % str(ex))
+
+        if not metrics:
+            return
+
+        n_limit = 5000
+        total = len(metrics)
+        for offset in range(0, total, n_limit):
+            _send(metrics[offset:offset + n_limit])
 
     def _flush(self):
         with self.timer_lock:
@@ -303,6 +316,7 @@ if __name__ == "__main__":
     print('python version: %s' % sys.version)
 
     class TaskWorker(threading.Thread):
+
         def __init__(self, metric):
             super(TaskWorker, self).__init__()
             self.metric = metric
