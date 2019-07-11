@@ -2,6 +2,7 @@
 *.egg-info
 .venv
 .venv3
+venv37
 .vscode
 .idea
 dist/

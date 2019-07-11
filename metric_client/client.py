@@ -86,6 +86,7 @@ class MetricClient(object):
         with self.timer_lock:
             if self.timer:
                 self.timer.cancel()
+            self.timer = None
 
         metrics = []
 
