@@ -6,3 +6,4 @@ venv37
 .vscode
 .idea
 dist/
+.DS_Store

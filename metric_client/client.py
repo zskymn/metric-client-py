@@ -175,7 +175,7 @@ class MetricClient(object):
             self.timer.start()
 
     @log_for_error
-    def set(self, name, value, ts=None):
+    def set(self, name, value, ts=None, agg_labels=None):
         name = self._check_not_empty_string(name, 'name')
         value = self._check_number(value, 'value')
         ts = self._check_ts(ts or time.time(), 'ts')
@@ -185,7 +185,7 @@ class MetricClient(object):
             if last:
                 last['value'] = value
             else:
-                self.set_metrics[key] = dict(type='set', name=name, value=value, ts=ts)
+                self.set_metrics[key] = dict(type='set', name=name, value=value, ts=ts, agg_labels=agg_labels)
         self._flush()
 
     @log_for_error
@@ -324,13 +324,14 @@ if __name__ == "__main__":
 
         def run(self):
             for i in range(100):
-                self.metric.summary('summary_metric', i, percentiles=[50, 90, 95, 99])
-                self.metric.timing('timing_metric', i * 100, ts=time.time() - 300)
-                self.metric.counter('counter_metric', 1)
-                self.metric.max('max_metric', i, ts=time.time() - 300)
-                self.metric.min('min_metric', i)
-                self.metric.avg('avg_metric', i)
-                self.metric.set('set_metric', i)
+                # self.metric.summary('summary_metric', i, percentiles=[50, 90, 95, 99])
+                # self.metric.timing('timing_metric', i * 100, ts=time.time() - 300)
+                # self.metric.counter('counter_metric', 1)
+                # self.metric.max('max_metric', i, ts=time.time() - 300)
+                # self.metric.min('min_metric', i)
+                # self.metric.avg('avg_metric', i)
+                self.metric.set('set_metric_1_%s' % i, i - 1, agg_labels=['abcdef', 'ab', 'cd', 'ef'])
+                self.metric.set('set_metric_2', i, agg_labels=['abcdef', 'ab', 'cd'])
 
     def process_run():
         worker_list = []
@@ -346,9 +347,9 @@ if __name__ == "__main__":
     token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ2ZXJzaW9uIjoxLCJhcHBjb2RlIjoib3BzX21ldHJpY2d3IiwidG9fdXNlciI6Inh4eHguemhhbyIsImlhdCI6MTU0NTczNTczMH0.Aj8srWIjyFwxhcMrZlCxyNlP44uLG0iiR31ynyYd4Bw'  # noqa
     send_api = 'http://localhost:6066/v1/metric/send'
     metric = MetricClient(send_api, token)
-    pool = multiprocessing.Pool(2)
+    pool = multiprocessing.Pool(1)
 
     while True:
-        for i in range(20):
+        for i in range(2):
             pool.apply_async(process_run)
-        time.sleep(1)
+        time.sleep(6)
