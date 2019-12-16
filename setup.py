@@ -7,7 +7,7 @@ here = path.abspath(path.dirname(__file__))
 
 setup(
     name='metric-client',
-    version='2.2.0',
+    version='3.0.0',
     description='metric client for python',
     url='https://github.com/zskymn/metric-client-py',
     author='zskymn',
@@ -20,9 +20,10 @@ setup(
         'License :: OSI Approved :: MIT License',
         'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 3.7',
     ],
     packages=['metric_client'],
-    install_requires=['qtdigest==0.3.0', 'requests>=2.6.0'],
+    install_requires=['qtdigest-cffi==0.4.0', 'requests>=2.6.0'],
     extras_require={
         'test': ['pytest', 'pytest-cov'],
     },

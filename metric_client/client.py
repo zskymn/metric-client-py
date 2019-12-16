@@ -7,7 +7,7 @@ import time
 from functools import wraps
 
 import requests
-from qtdigest import Tdigest
+from tdigest import RawTDigest as Tdigest
 
 import logging
 
@@ -124,11 +124,14 @@ class MetricClient(object):
 
             for k in self.summary_metrics:
                 v = self.summary_metrics[k]
+                serialize_str = v['td'].simpleSerialize()
+                if not serialize_str:
+                    continue
                 metrics.append(dict(
                     type=v['type'],
                     name=v['name'],
                     data_type='tdigest',
-                    value=v['td'].simpleSerialize(),
+                    value=serialize_str,
                     output=dict(common=['count', 'min', 'max', 'avg'], percentiles=v['percentiles']),
                     ts=v['ts']
                 ))
@@ -143,7 +146,7 @@ class MetricClient(object):
             try:
                 resp = requests.post(self.send_api, json=dict(metrics=_metrics), headers=headers)
                 return resp
-            except Exception as ex:
+            except Exception:
                 try:
                     resp = requests.post(self.send_api, json=dict(metrics=_metrics), headers=headers)
                     return resp
@@ -324,18 +327,17 @@ if __name__ == "__main__":
 
         def run(self):
             for i in range(100):
-                # self.metric.summary('summary_metric', i, percentiles=[50, 90, 95, 99])
+                self.metric.summary('summary_metric', i, percentiles=[50, 90, 95, 99])
                 # self.metric.timing('timing_metric', i * 100, ts=time.time() - 300)
                 # self.metric.counter('counter_metric', 1)
                 # self.metric.max('max_metric', i, ts=time.time() - 300)
                 # self.metric.min('min_metric', i)
                 # self.metric.avg('avg_metric', i)
-                self.metric.set('set_metric_1_%s' % i, i - 1, agg_labels=['abcdef', 'ab', 'cd', 'ef'])
-                self.metric.set('set_metric_2', i, agg_labels=['abcdef', 'ab', 'cd'])
+                # self.metric.set('set_metric_2', i, agg_labels=['abcdef', 'ab', 'cd'])
 
     def process_run():
         worker_list = []
-        for i in range(50):
+        for i in range(5):
             worker_list.append(TaskWorker(metric))
 
         for worker in worker_list:
@@ -350,6 +352,6 @@ if __name__ == "__main__":
     pool = multiprocessing.Pool(1)
 
     while True:
-        for i in range(2):
+        for i in range(1):
             pool.apply_async(process_run)
-        time.sleep(6)
+        time.sleep(60)

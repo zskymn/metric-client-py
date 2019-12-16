@@ -1,2 +1,2 @@
-qtdigest==0.3.0
-requests==2.20.0
+qtdigest-cffi==0.4.0
+requests==2.22.0
