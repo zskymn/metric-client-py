@@ -7,7 +7,7 @@ here = path.abspath(path.dirname(__file__))
 
 setup(
     name='metric-client',
-    version='3.1.0',
+    version='3.2.0',
     description='metric client for python',
     url='https://github.com/zskymn/metric-client-py',
     author='zskymn',

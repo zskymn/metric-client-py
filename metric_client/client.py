@@ -192,7 +192,7 @@ class MetricClient(object):
         self._flush()
 
     @log_for_error
-    def counter(self, name, value, ts=None):
+    def counter(self, name, value, ts=None, agg_labels=None):
         name = self._check_not_empty_string(name, 'name')
         value = self._check_number(value, 'value')
         ts = self._check_ts(ts or time.time(), 'ts')
@@ -202,11 +202,11 @@ class MetricClient(object):
             if last:
                 last['value'] += value
             else:
-                self.counter_metrics[key] = dict(type='counter', name=name, value=value, ts=ts)
+                self.counter_metrics[key] = dict(type='counter', name=name, value=value, ts=ts, agg_labels=agg_labels)
         self._flush()
 
     @log_for_error
-    def max(self, name, value, ts=None):
+    def max(self, name, value, ts=None, agg_labels=None):
         name = self._check_not_empty_string(name, 'name')
         value = self._check_number(value, 'value')
         ts = self._check_ts(ts or time.time(), 'ts')
@@ -216,11 +216,11 @@ class MetricClient(object):
             if last:
                 last['value'] = max(last['value'], value)
             else:
-                self.max_metrics[key] = dict(type='max', name=name, value=value, ts=ts)
+                self.max_metrics[key] = dict(type='max', name=name, value=value, ts=ts, agg_labels=agg_labels)
         self._flush()
 
     @log_for_error
-    def min(self, name, value, ts=None):
+    def min(self, name, value, ts=None, agg_labels=None):
         name = self._check_not_empty_string(name, 'name')
         value = self._check_number(value, 'value')
         ts = self._check_ts(ts or time.time(), 'ts')
@@ -230,11 +230,11 @@ class MetricClient(object):
             if last:
                 last['value'] = min(last['value'], value)
             else:
-                self.min_metrics[key] = dict(type='min', name=name, value=value, ts=ts)
+                self.min_metrics[key] = dict(type='min', name=name, value=value, ts=ts, agg_labels=agg_labels)
         self._flush()
 
     @log_for_error
-    def avg(self, name, value, ts=None):
+    def avg(self, name, value, ts=None, agg_labels=None):
         name = self._check_not_empty_string(name, 'name')
         value = self._check_number(value, 'value')
         ts = self._check_ts(ts or time.time(), 'ts')
@@ -245,7 +245,7 @@ class MetricClient(object):
                 last['count'] += 1
                 last['sum'] += value
             else:
-                self.avg_metrics[key] = dict(type='avg', name=name, count=1, sum=value, ts=ts)
+                self.avg_metrics[key] = dict(type='avg', name=name, count=1, sum=value, ts=ts, agg_labels=agg_labels)
         self._flush()
 
     @log_for_error
@@ -329,10 +329,10 @@ if __name__ == "__main__":
             for i in range(100):
                 self.metric.summary('summary_metric', i, percentiles=[50, 90, 95, 99])
                 # self.metric.timing('timing_metric', i * 100, ts=time.time() - 300)
-                # self.metric.counter('counter_metric', 1)
+                self.metric.counter('counter_metric', 1, agg_labels=['avg_metric_1', 'avg_metric_2'])
                 # self.metric.max('max_metric', i, ts=time.time() - 300)
                 # self.metric.min('min_metric', i)
-                # self.metric.avg('avg_metric', i)
+                self.metric.avg('avg_metric', i, agg_labels=['avg_metric_1', 'avg_metric_2'])
                 # self.metric.set('set_metric_2', i, agg_labels=['abcdef', 'ab', 'cd'])
 
     def process_run():
